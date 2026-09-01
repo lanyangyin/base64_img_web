@@ -22,6 +22,7 @@
             border-radius: 10px;
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
             max-width: 90%;
+            width: 600px;
         }
         img {
             max-width: 100%;
@@ -33,6 +34,19 @@
             color: red;
             font-weight: bold;
         }
+        .download-btn {
+            display: inline-block;
+            margin-top: 10px;
+            padding: 8px 16px;
+            background-color: #007bff;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .download-btn:hover {
+            background-color: #0056b3;
+        }
     </style>
 </head>
 <body>
@@ -41,7 +55,8 @@
         <div id="imageContainer">
             <p>正在加载图片...</p>
         </div>
-        <p id="info"></p>
+        <div id="info" style="margin-top: 10px;"></div>
+        <a id="downloadLink" class="download-btn" style="display: none;" download="nfc_image.png">下载图片</a>
     </div>
 
     <script>
@@ -49,32 +64,37 @@
             const params = new URLSearchParams(window.location.search);
             const imageContainer = document.getElementById('imageContainer');
             const info = document.getElementById('info');
+            const downloadLink = document.getElementById('downloadLink');
 
-            // 获取 base64 数据或 Data URL
             const b64Param = params.get('img');   // 纯 base64
             const dataParam = params.get('data'); // Data URL
             const mimeType = params.get('type') || 'image/png'; // 默认 PNG
 
             let imageSrc = '';
+            let imageBlobUrl = '';
 
+            // 尝试从 data 参数解析
             if (dataParam) {
-                // 如果提供了 Data URL，直接使用
                 imageSrc = dataParam;
             } else if (b64Param) {
-                // 纯 base64，需要拼成 Data URL
+                // 校验 base64 并转换为 Data URL
                 try {
-                    // 检查 base64 是否有效（简单长度检查）
-                    if (b64Param.length % 4 !== 0) {
-                        throw new Error('Base64 长度不正确');
+                    // 使用 atob 验证有效性，并获取二进制数据
+                    const binaryString = atob(b64Param);
+                    const bytes = new Uint8Array(binaryString.length);
+                    for (let i = 0; i < binaryString.length; i++) {
+                        bytes[i] = binaryString.charCodeAt(i);
                     }
-                    imageSrc = `data:${mimeType};base64,${b64Param}`;
+                    const blob = new Blob([bytes], { type: mimeType });
+                    imageBlobUrl = URL.createObjectURL(blob);
+                    imageSrc = imageBlobUrl;
                 } catch (e) {
-                    imageContainer.innerHTML = `<p class="error">Base64 数据无效</p>`;
+                    imageContainer.innerHTML = `<p class="error">Base64 数据无效，请检查参数</p>`;
                     return;
                 }
             } else {
                 imageContainer.innerHTML = `<p class="error">请提供 img 或 data 参数</p>`;
-                info.textContent = '例如：?img=BASE64数据&type=image/png';
+                info.innerHTML = '例如：?img=BASE64数据&type=image/png';
                 return;
             }
 
@@ -82,11 +102,22 @@
             img.onload = function() {
                 imageContainer.innerHTML = '';
                 imageContainer.appendChild(img);
-                info.textContent = '图片加载成功';
+                const sizeText = img.naturalWidth + ' × ' + img.naturalHeight + ' 像素';
+                info.innerHTML = '图片加载成功 (' + sizeText + ')';
+                if (imageBlobUrl) {
+                    downloadLink.style.display = 'inline-block';
+                    downloadLink.href = imageBlobUrl;
+                    downloadLink.setAttribute('download', 'nfc_image.' + (mimeType.split('/')[1] || 'png'));
+                } else if (dataParam) {
+                    downloadLink.style.display = 'inline-block';
+                    downloadLink.href = dataParam;
+                    downloadLink.setAttribute('download', 'nfc_image.' + (mimeType.split('/')[1] || 'png'));
+                }
             };
             img.onerror = function() {
                 imageContainer.innerHTML = `<p class="error">图片加载失败，请检查数据或 MIME 类型</p>`;
-                info.textContent = '';
+                info.innerHTML = '';
+                if (imageBlobUrl) URL.revokeObjectURL(imageBlobUrl);
             };
             img.src = imageSrc;
         })();
