@@ -66,29 +66,41 @@
             const info = document.getElementById('info');
             const downloadLink = document.getElementById('downloadLink');
 
-            const b64Param = params.get('img');   // 纯 base64
-            const dataParam = params.get('data'); // Data URL
-            const mimeType = params.get('type') || 'image/png'; // 默认 PNG
+            let b64Param = params.get('img');
+            const dataParam = params.get('data');
+            const mimeType = params.get('type') || 'image/png';
 
             let imageSrc = '';
             let imageBlobUrl = '';
 
-            // 尝试从 data 参数解析
-            if (dataParam) {
-                imageSrc = dataParam;
-            } else if (b64Param) {
-                // 校验 base64 并转换为 Data URL
+            function decodeBase64(data) {
+                // 清理非法字符：移除空白、换行等
+                let cleaned = data.replace(/\s+/g, '');
+                // 转换 URL-safe base64 到标准 base64
+                cleaned = cleaned.replace(/-/g, '+').replace(/_/g, '/');
+                // 补全 '=' 填充
+                while (cleaned.length % 4) cleaned += '=';
                 try {
-                    // 使用 atob 验证有效性，并获取二进制数据
-                    const binaryString = atob(b64Param);
+                    const binaryString = atob(cleaned);
                     const bytes = new Uint8Array(binaryString.length);
                     for (let i = 0; i < binaryString.length; i++) {
                         bytes[i] = binaryString.charCodeAt(i);
                     }
-                    const blob = new Blob([bytes], { type: mimeType });
+                    return new Blob([bytes], { type: mimeType });
+                } catch (e) {
+                    return null;
+                }
+            }
+
+            if (dataParam) {
+                // 如果提供了 Data URL，直接使用
+                imageSrc = dataParam;
+            } else if (b64Param) {
+                const blob = decodeBase64(b64Param);
+                if (blob) {
                     imageBlobUrl = URL.createObjectURL(blob);
                     imageSrc = imageBlobUrl;
-                } catch (e) {
+                } else {
                     imageContainer.innerHTML = `<p class="error">Base64 数据无效，请检查参数</p>`;
                     return;
                 }
@@ -107,10 +119,6 @@
                 if (imageBlobUrl) {
                     downloadLink.style.display = 'inline-block';
                     downloadLink.href = imageBlobUrl;
-                    downloadLink.setAttribute('download', 'nfc_image.' + (mimeType.split('/')[1] || 'png'));
-                } else if (dataParam) {
-                    downloadLink.style.display = 'inline-block';
-                    downloadLink.href = dataParam;
                     downloadLink.setAttribute('download', 'nfc_image.' + (mimeType.split('/')[1] || 'png'));
                 }
             };
